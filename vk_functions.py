@@ -6,6 +6,7 @@ from vk_config import group_token, user_token, V
 from vk_api.exceptions import ApiError
 from models import engine, Base, Session, User, DatingUser, Photos, BlackList
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
+import sqlalchemy
 
 
 vk = vk_api.VkApi(token=group_token)
@@ -13,7 +14,8 @@ longpoll = VkLongPoll(vk)
 session = Session()
 connection = engine.connect()
 
-
+DSN = f'postgresql:///postgres:rsjabber233@localhost:5432/vk_db'
+engine = sqlalchemy.create_engine(DSN)
 
 
 

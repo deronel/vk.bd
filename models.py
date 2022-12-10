@@ -7,28 +7,30 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
 
+# Подключение к БД
+Base = declarative_base('vk_db')
+DSN = f'postgresql:///postgres:rsjabber233@localhost:5432/vk_db'
 
-Base = declarative_base()
-
-
-engine = sq.create_engine('',
+engine = sq.create_engine('DSN',
                           client_encoding='utf8')
 Session = sessionmaker(bind=engine)
+
 # Для работы с ВК
 vk = vk_api.VkApi(token=group_token)
 longpoll = VkLongPoll(vk)
-
+# Для работы с БД
 session = Session()
-connection = engine.connect()
+connection = engine.connect('vk_db')
 
 
-
+# Пользователь бота ВК
 class User(Base):
     __tablename__ = 'user'
     id = sq.Column(sq.Integer, primary_key=True, autoincrement=True)
     vk_id = sq.Column(sq.Integer, unique=True)
 
 
+# Анкеты добавленные в избранное
 class DatingUser(Base):
     __tablename__ = 'dating_user'
     id = sq.Column(sq.Integer, primary_key=True, autoincrement=True)
@@ -40,7 +42,7 @@ class DatingUser(Base):
     id_user = sq.Column(sq.Integer, sq.ForeignKey('user.id', ondelete='CASCADE'))
 
 
-
+# Фото избранных анкет
 class Photos(Base):
     __tablename__ = 'photos'
     id = sq.Column(sq.Integer, primary_key=True, autoincrement=True)
@@ -49,7 +51,7 @@ class Photos(Base):
     id_dating_user = sq.Column(sq.Integer, sq.ForeignKey('dating_user.id', ondelete='CASCADE'))
 
 
-
+# Анкеты в черном списке
 class BlackList(Base):
     __tablename__ = 'black_list'
     id = sq.Column(sq.Integer, primary_key=True, autoincrement=True)
@@ -63,28 +65,32 @@ class BlackList(Base):
     id_user = sq.Column(sq.Integer, sq.ForeignKey('user.id', ondelete='CASCADE'))
 
 
+""" 
+ФУНКЦИИ РАБОТЫ С БД
+"""
 
 
-
+# Удаляет пользователя из черного списка
 def delete_db_blacklist(ids):
     current_user = session.query(BlackList).filter_by(vk_id=ids).first()
     session.delete(current_user)
     session.commit()
 
 
+# Удаляет пользователя из избранного
 def delete_db_favorites(ids):
     current_user = session.query(DatingUser).filter_by(vk_id=ids).first()
     session.delete(current_user)
     session.commit()
 
 
-
+# проверят зареган ли пользователь бота в БД
 def check_db_master(ids):
     current_user_id = session.query(User).filter_by(vk_id=ids).first()
     return current_user_id
 
 
-
+# проверят есть ли юзер в бд
 def check_db_user(ids):
     dating_user = session.query(DatingUser).filter_by(
         vk_id=ids).first()
@@ -93,15 +99,15 @@ def check_db_user(ids):
     return dating_user, blocked_user
 
 
-
+# Проверят есть ли юзер в черном списке
 def check_db_black(ids):
     current_users_id = session.query(User).filter_by(vk_id=ids).first()
-
+    # Находим все анкеты из избранного которые добавил данный юзер
     all_users = session.query(BlackList).filter_by(id_user=current_users_id.id).all()
     return all_users
 
 
-
+# Проверяет есть ли юзер в избранном
 def check_db_favorites(ids):
     current_users_id = session.query(User).filter_by(vk_id=ids).first()
     # Находим все анкеты из избранного которые добавил данный юзер
@@ -109,7 +115,7 @@ def check_db_favorites(ids):
     return alls_users
 
 
-
+# Пишет сообщение пользователю
 def write_msg(user_id, message, attachment=None):
     vk.method('messages.send',
               {'user_id': user_id,
@@ -118,7 +124,7 @@ def write_msg(user_id, message, attachment=None):
                'attachment': attachment})
 
 
-
+# Регистрация пользователя
 def register_user(vk_id):
     try:
         new_user = User(
@@ -131,7 +137,7 @@ def register_user(vk_id):
         return False
 
 
-
+# Сохранение выбранного пользователя в БД
 def add_user(event_id, vk_id, first_name, second_name, city, link, id_user):
     try:
         new_user = DatingUser(
@@ -153,7 +159,7 @@ def add_user(event_id, vk_id, first_name, second_name, city, link, id_user):
         return False
 
 
-
+# Сохранение в БД фото добавленного пользователя
 def add_user_photos(event_id, link_photo, count_likes, id_dating_user):
     try:
         new_user = Photos(
@@ -172,7 +178,7 @@ def add_user_photos(event_id, link_photo, count_likes, id_dating_user):
         return False
 
 
-
+# Добавление пользователя в черный список
 def add_to_black_list(event_id, vk_id, first_name, second_name, city, link, link_photo, count_likes, id_user):
     try:
         new_user = BlackList(
@@ -198,7 +204,6 @@ def add_to_black_list(event_id, vk_id, first_name, second_name, city, link, link
 
 if __name__ == '__main__':
     Base.metadata.create_all(engine)
-
 
 
 
